@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import VoucherList from './components/VoucherList';
 
-const API_URL = 'http://localhost:4000/vouchers';
+const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:4000') + '/vouchers';
 
 function App() {
   const [vouchers, setVouchers] = useState([]);
