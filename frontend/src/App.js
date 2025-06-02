@@ -92,7 +92,17 @@ function App() {
             Add Voucher
           </button>
         </form>
-        {loading ? <p style={{textAlign:'center'}}>Loading...</p> : <VoucherList vouchers={vouchers} onChange={fetchVouchers} />}
+        {loading ? (
+          <p style={{textAlign:'center'}}>Loading...</p>
+        ) : (
+          <>
+            <h2 style={{fontSize:22, color:'#f76b1c', marginBottom:12, marginTop:0, fontWeight:700}}>Active Vouchers</h2>
+            <VoucherList vouchers={vouchers.filter(v => !v.used)} onChange={fetchVouchers} />
+            <hr style={{margin:'32px 0 24px 0', border:'none', borderTop:'1px solid #f6d365'}} />
+            <h2 style={{fontSize:18, color:'#bbb', marginBottom:12, marginTop:0, fontWeight:700}}>Archive</h2>
+            <VoucherList vouchers={vouchers.filter(v => v.used)} onChange={fetchVouchers} />
+          </>
+        )}
       </div>
     </div>
   );
