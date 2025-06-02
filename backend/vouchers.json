@@ -34,5 +34,13 @@
     ],
     "used": false,
     "createdAt": "2025-06-02T10:09:06.295Z"
+  },
+  {
+    "id": "78e6a377-1bee-4b13-8ab1-065adb438d7d",
+    "text": "f",
+    "expiration": null,
+    "codes": [],
+    "used": true,
+    "createdAt": "2025-06-02T10:34:08.962Z"
   }
 ]

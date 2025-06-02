@@ -1,24 +1,31 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = 4000;
-const DATA_FILE = path.join(__dirname, 'vouchers.json');
 
 app.use(cors());
 app.use(bodyParser.json());
 
-function loadVouchers() {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render') ? { rejectUnauthorized: false } : false,
+});
 
-function saveVouchers(vouchers) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(vouchers, null, 2));
+async function ensureTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vouchers (
+      id UUID PRIMARY KEY,
+      text TEXT NOT NULL,
+      expiration DATE,
+      codes TEXT[],
+      used BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
 
 function parseExpiration(text) {
@@ -36,44 +43,37 @@ function parseCodes(text) {
   return Array.from(text.matchAll(/\d{6,}-\d{4}/g)).map(m => m[0]);
 }
 
-app.get('/vouchers', (req, res) => {
-  let vouchers = loadVouchers();
-  vouchers.sort((a, b) => {
-    if (!a.expiration) return 1;
-    if (!b.expiration) return -1;
-    return new Date(a.expiration) - new Date(b.expiration);
-  });
-  res.json(vouchers);
+app.get('/vouchers', async (req, res) => {
+  await ensureTable();
+  const result = await pool.query('SELECT * FROM vouchers ORDER BY expiration NULLS LAST, created_at DESC');
+  res.json(result.rows);
 });
 
-app.post('/vouchers', (req, res) => {
+app.post('/vouchers', async (req, res) => {
+  await ensureTable();
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: 'Text is required' });
   const expiration = parseExpiration(text);
   const codes = parseCodes(text);
-  const voucher = {
-    id: uuidv4(),
-    text,
-    expiration,
-    codes,
-    used: false,
-    createdAt: new Date().toISOString(),
-  };
-  const vouchers = loadVouchers();
-  vouchers.push(voucher);
-  saveVouchers(vouchers);
-  res.status(201).json(voucher);
+  const id = uuidv4();
+  const used = false;
+  const created_at = new Date();
+  await pool.query(
+    'INSERT INTO vouchers (id, text, expiration, codes, used, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+    [id, text, expiration, codes, used, created_at]
+  );
+  const result = await pool.query('SELECT * FROM vouchers WHERE id = $1', [id]);
+  res.status(201).json(result.rows[0]);
 });
 
-app.patch('/vouchers/:id/used', (req, res) => {
+app.patch('/vouchers/:id/used', async (req, res) => {
+  await ensureTable();
   const { id } = req.params;
   const { used } = req.body;
-  const vouchers = loadVouchers();
-  const idx = vouchers.findIndex(v => v.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  vouchers[idx].used = !!used;
-  saveVouchers(vouchers);
-  res.json(vouchers[idx]);
+  await pool.query('UPDATE vouchers SET used = $1 WHERE id = $2', [!!used, id]);
+  const result = await pool.query('SELECT * FROM vouchers WHERE id = $1', [id]);
+  if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+  res.json(result.rows[0]);
 });
 
 app.listen(PORT, () => {
