@@ -17,3 +17,6 @@ frontend/build/
 
 # VSCode
 .vscode/ 
+
+# Cursor
+.cursor/
